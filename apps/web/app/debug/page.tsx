@@ -3,16 +3,39 @@
 import { useState } from "react";
 import { getSpotifyToken, isSpotifyConnected, startSpotifyLogin } from "@/lib/spotify-auth";
 
+const API = "https://api.spotify.com/v1";
 const TEST_TRACK = "spotify:track:4cOdK2wGLETKBW3PvgPWqT";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function step(label: string, url: string, init: RequestInit = {}) {
+interface PlayerState {
+  is_playing?: boolean;
+  progress_ms?: number;
+  device?: { id: string; name: string; type: string; is_active: boolean };
+  item?: { uri: string; name: string; is_playable?: boolean } | null;
+  actions?: { disallows?: Record<string, boolean> };
+}
+
+async function api(path: string, init: RequestInit = {}) {
   const token = await getSpotifyToken();
-  const res = await fetch(url, {
+  return fetch(`${API}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
   });
-  const text = await res.text();
-  return `## ${label}\n${init.method ?? "GET"} ${url.replace("https://api.spotify.com/v1", "")}\n=> ${res.status}\n${text.slice(0, 600)}\n`;
+}
+
+async function state(): Promise<PlayerState | null> {
+  const res = await api("/me/player");
+  return res.status === 200 ? ((await res.json()) as PlayerState) : null;
+}
+
+function brief(s: PlayerState | null) {
+  if (!s) return "(sem estado)";
+  return [
+    `dispositivo: ${s.device?.name} (${s.device?.type}) ativo=${s.device?.is_active}`,
+    `tocando=${s.is_playing} progresso=${s.progress_ms}ms`,
+    `faixa: ${s.item ? `${s.item.name} [${s.item.uri}]` : "NENHUMA"}`,
+    `bloqueios: ${JSON.stringify(s.actions?.disallows ?? {})}`,
+  ].join("\n");
 }
 
 export default function DebugPage() {
@@ -22,37 +45,50 @@ export default function DebugPage() {
   async function run() {
     setBusy(true);
     let log = "";
-    const add = async (fn: () => Promise<string>) => {
-      try {
-        log += (await fn()) + "\n";
-      } catch (e) {
-        log += `ERRO: ${e instanceof Error ? e.message : String(e)}\n\n`;
-      }
+    const say = (t: string) => {
+      log += t + "\n";
       setOut(log);
     };
-    const api = "https://api.spotify.com/v1";
-    await add(() => step("Conta (precisa ser premium)", `${api}/me`));
-    await add(() => step("Dispositivos", `${api}/me/player/devices`));
-    await add(() => step("Estado atual", `${api}/me/player`));
-    await add(() =>
-      step("Tocar faixa de teste", `${api}/me/player/play`, {
+
+    async function attempt(label: string, uri: string, deviceId?: string) {
+      say(`\n## ${label}`);
+      const q = deviceId ? `?device_id=${deviceId}` : "";
+      const res = await api(`/me/player/play${q}`, {
         method: "PUT",
-        body: JSON.stringify({ uris: [TEST_TRACK] }),
-      }),
-    );
-    await new Promise((r) => setTimeout(r, 1500));
-    await add(() => step("Estado depois de tocar", `${api}/me/player`));
+        body: JSON.stringify({ uris: [uri], position_ms: 0 }),
+      });
+      say(`PUT /play${q ? " (com device_id)" : ""} => ${res.status} ${res.status === 204 ? "" : await res.text()}`);
+      for (const wait of [1500, 3000, 4000]) {
+        await sleep(wait);
+        say(`+${wait}ms\n${brief(await state())}`);
+      }
+    }
+
+    try {
+      const me = await (await api("/me")).json();
+      say(`conta: ${me.display_name} | product=${me.product ?? "(Spotify nao informa)"}`);
+      const devices = await (await api("/me/player/devices")).json();
+      say(`dispositivos: ${JSON.stringify(devices.devices?.map((d: { name: string; type: string; is_active: boolean }) => `${d.name} (${d.type}${d.is_active ? ", ativo" : ""})`))}`);
+      const before = await state();
+      say(`\n## Estado inicial\n${brief(before)}`);
+      const deviceId = before?.device?.id;
+      if (before?.item?.uri) await attempt("Teste A: repetir a faixa que ja esta tocando", before.item.uri, deviceId);
+      await attempt("Teste B: faixa de teste (Rick Astley)", TEST_TRACK, deviceId);
+    } catch (e) {
+      say(`ERRO: ${e instanceof Error ? e.message : String(e)}`);
+    }
     setBusy(false);
   }
 
   return (
     <main>
       <h1>Diagnostico Spotify</h1>
+      <p>Deixe uma musica TOCANDO no Spotify antes de rodar.</p>
       {!isSpotifyConnected() ? (
         <button onClick={() => startSpotifyLogin("/debug")}>Conectar Spotify</button>
       ) : (
         <button onClick={run} disabled={busy}>
-          {busy ? "Rodando..." : "Rodar diagnostico"}
+          {busy ? "Rodando (~20s)..." : "Rodar diagnostico"}
         </button>
       )}
       <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-all", fontSize: 12, color: "#b4b4c0" }}>{out}</pre>
