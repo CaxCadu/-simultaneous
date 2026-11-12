@@ -95,7 +95,10 @@ export function Room({ code }: { code: string }) {
         });
         if (action.type === "play") {
           const item = queueRef.current.find((q) => q.id === state.queueItemId);
-          if (!item) return;
+          if (!item) {
+            setNotice("Faixa ainda nao carregada na fila; aguarde um instante.");
+            return;
+          }
           let track: Track = item;
           if (!track.spotifyId && track.isrc) {
             track = (await spotifyApi.getByIsrc(track.isrc)) ?? track;
