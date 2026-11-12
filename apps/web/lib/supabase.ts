@@ -1,8 +1,8 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
 
-/** Cliente do navegador. Garante uma sessão anônima antes de usar. */
+/** Cliente do navegador (sessão persistida em localStorage). */
 export function getSupabase(): SupabaseClient {
   if (!client) {
     client = createClient(
@@ -13,11 +13,11 @@ export function getSupabase(): SupabaseClient {
   return client;
 }
 
-export async function ensureSession(): Promise<string> {
-  const supabase = getSupabase();
-  const { data } = await supabase.auth.getSession();
-  if (data.session) return data.session.user.id;
-  const { data: anon, error } = await supabase.auth.signInAnonymously();
-  if (error || !anon.user) throw error ?? new Error("anonymous sign-in failed");
-  return anon.user.id;
+export async function getCurrentUser(): Promise<User | null> {
+  const { data } = await getSupabase().auth.getSession();
+  return data.session?.user ?? null;
+}
+
+export function displayNameOf(user: User): string {
+  return (user.email ?? "Convidado").split("@")[0]!.slice(0, 40);
 }

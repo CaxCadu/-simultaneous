@@ -19,3 +19,9 @@ input {
   background: #14141c; color: inherit; text-transform: uppercase; letter-spacing: .15em; width: 10em;
 }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+.stack { display: flex; flex-direction: column; gap: 12px; max-width: 320px; margin-top: 16px; }
+.field { text-transform: none; letter-spacing: normal; width: 100%; }
+button:disabled { opacity: .6; cursor: default; }
+button.link { background: none; color: #9d86ff; padding: 4px; text-align: left; }
+select { font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid #2a2a38; background: #14141c; color: inherit; }
+ul.members { list-style: none; padding: 0; color: #b4b4c0; }
