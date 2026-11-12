@@ -25,3 +25,9 @@ button:disabled { opacity: .6; cursor: default; }
 button.link { background: none; color: #9d86ff; padding: 4px; text-align: left; }
 select { font: inherit; padding: 12px 14px; border-radius: 12px; border: 1px solid #2a2a38; background: #14141c; color: inherit; }
 ul.members { list-style: none; padding: 0; color: #b4b4c0; }
+.card { border: 1px solid #2a2a38; border-radius: 16px; padding: 4px 16px 12px; margin: 16px 0; background: #14141c; }
+.small { padding: 6px 14px; font-size: 14px; }
+ul.queue { list-style: none; padding: 0; }
+ul.queue li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #1d1d28; color: #b4b4c0; }
+ul.queue li.active { color: #fff; font-weight: 600; }
+h2 { font-size: 1.1rem; margin: 16px 0 8px; }

@@ -172,6 +172,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@simultaneous/catalog':
+        specifier: workspace:*
+        version: link:../../packages/catalog
       '@simultaneous/core':
         specifier: workspace:*
         version: link:../../packages/core
