@@ -76,12 +76,46 @@ export class SpotifyConnectAdapter implements PlayerAdapter {
     if (!res.ok && res.status !== 204) throw new Error(await explain(res));
   }
 
+  /** Le o estado real do Spotify (o 204 so diz que o comando foi aceito). */
+  private async snapshot() {
+    const res = await call("", "GET");
+    if (res.status !== 200) return null;
+    return (await res.json()) as {
+      is_playing: boolean;
+      item: { id: string; name: string } | null;
+      device: { name: string; type: string };
+    };
+  }
+
+  private async isPlayingTrack(spotifyId: string) {
+    await new Promise((r) => setTimeout(r, 1200));
+    const s = await this.snapshot();
+    return !!s && s.is_playing && s.item?.id === spotifyId;
+  }
+
   async play(track: Track, positionMs: number) {
-    if (!track.spotifyId) return;
-    await this.command("/play", "PUT", {
-      uris: [`spotify:track:${track.spotifyId}`],
-      position_ms: Math.max(0, Math.round(positionMs)),
-    });
+    const id = track.spotifyId;
+    if (!id) return;
+    const body = { uris: [`spotify:track:${id}`], position_ms: Math.max(0, Math.round(positionMs)) };
+
+    await this.command("/play", "PUT", body);
+    if (await this.isPlayingTrack(id)) return;
+
+    // Aceitou mas nao tocou (comum quando o app do Spotify esta em segundo plano):
+    // transfere a reproducao ja tocando para o dispositivo e repete.
+    const device = await this.pickDevice();
+    await call("", "PUT", { device_ids: [device], play: true });
+    await new Promise((r) => setTimeout(r, 1000));
+    await this.command("/play", "PUT", body);
+    if (await this.isPlayingTrack(id)) return;
+
+    const s = await this.snapshot();
+    throw new Error(
+      `O Spotify aceitou o comando mas nao tocou "${track.title}". ` +
+        `Dispositivo: ${s?.device.name ?? "?"} (${s?.device.type ?? "?"}); ` +
+        `tocando: ${s?.item?.name ?? "nada"}; is_playing=${s?.is_playing ?? "?"}. ` +
+        "Deixe o app do Spotify aberto e toque uma musica la, depois tente de novo.",
+    );
   }
   async pause() {
     await this.command("/pause", "PUT");
